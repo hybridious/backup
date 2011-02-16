@@ -1,0 +1,61 @@
+#!/bin/bash
+
+#Limpando as Regras
+iptables -F INPUT
+iptables -F OUTPUT
+iptables -F FORWARD
+
+#Definindo a Politica Padrao
+iptables -P INPUT DROP
+iptables -P OUTPUT ACCEPT
+iptables -P FORWARD ACCEPT
+
+#Desabilitando o trafego IP Entre as Placas de Rede
+echo "0" > /proc/sys/net/ipv4/ip_forward
+
+#Carregando os modulos do iptables
+modprobe ip_tables
+modprobe iptable_filter
+modprobe iptable_mangle
+modprobe iptable_nat
+modprobe ipt_MASQUERADE
+echo "Definir regras .............[ OK ]"
+
+#Regra de Entrada. Esta regra, so vale para o proprio host
+#Qualquer pacote IP que venha do localhost, e aceito.
+iptables -A INPUT -i lo -j ACCEPT
+
+#REDE INTERNA LIBERADA
+iptables -A INPUT -i eth1 -j ACCEPT
+
+#Sockets validos para uma conexao
+iptables -A INPUT -m state --state ESTABLISHED,RELATED,NEW -j ACCEPT
+
+
+#iptables -t nat -A PREROUTING -p tcp -d 200.253.166.130 --dport 8080 -j DNAT --to 10.1.1.151:8080
+
+#Ativando o mascaramento (nat).
+iptables -t nat -F POSTROUTING
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+
+#Redireciona porta 80 para 3128 (squid)
+iptables -t nat -A PREROUTING -i eth1 -p tcp --dport 80 -j REDIRECT --to-port 3128
+
+#Redirect para servidor de cameras
+iptables -t nat -A PREROUTING -i eth1 -p tcp --dport 1100 -j DNAT --to 10.1.1.177
+iptables -t nat -A PREROUTING -i eth1 -p tcp --dport 3550 -j DNAT --to 10.1.1.177
+iptables -t nat -A PREROUTING -i eth1 -p tcp --dport 4550 -j DNAT --to 10.1.1.177
+iptables -t nat -A PREROUTING -i eth1 -p tcp --dport 5550 -j DNAT --to 10.1.1.177
+iptables -t nat -A PREROUTING -i eth1 -p tcp --dport 6550 -j DNAT --to 10.1.1.177
+
+
+#REDE INTERNA LIBERADA
+iptables -A FORWARD -i eth1 -j ACCEPT
+
+#Sockets validos para uma conexao
+iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+#Habilitando o trafego Ip, entre as Interfaces de rede
+echo "1" > /proc/sys/net/ipv4/ip_forward
+echo "Firewall OK ...............[ OK ]"
+
